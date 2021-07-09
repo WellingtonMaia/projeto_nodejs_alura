@@ -4,7 +4,7 @@
 run `npm install`
 
 # Step 2
-configure database in `config/customExpress.js`
+configure database in `db/connection.js`
 
 # Step 3
 run `npm start`
