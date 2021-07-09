@@ -1,9 +1,11 @@
 const moment = require('moment');
-const connection = require('./../db/connection');
-const validation = require('./../validation/atendimento');
+const axios = require('axios');
+const connection = require('../infrastructure/db/connection');
+const validation = require('../controllers/validation/atendimento');
+const repository = require('../repositories/atendimento');
 
 class Atendimento {
-  add(atendimento, res) {
+  add(atendimento) {
     const createdAt = moment().format('YYYY-MM-DD HH:MM:SS');
     const data = moment(atendimento.data, 'DD/MM/YYYY').format('YYYY-MM-DD HH:MM:SS');
     const atendimentoDatado = {...atendimento, 'created_at': createdAt, 'data': data}
@@ -11,75 +13,63 @@ class Atendimento {
     const errors = validation.dataIsValid(atendimentoDatado);
 
     if (errors.length) {
-      res.status(400).json(errors);
-    
+      return new Promise((_, reject) => reject(errors));
+      
     } else {
-
-      const sql = `INSERT INTO atendimentos SET ?`;
-
-      connection.query(sql, atendimentoDatado, (error, result) => {
-        if (error) {
-          res.status(400).json(error);
-        } else {
-          res.status(201).json(atendimento);
-        }
-      });
+      return repository.add(atendimentoDatado)
+        .then((result) => {
+          const id = result.insertId 
+          return { ...atendimento, id };
+        });
     }
   }
 
-  list(res) {
-    const sql = `SELECT * FROM atendimentos`;
-
-    connection.query(sql, (error, result) => {
-      if (error)
-      {
-        res.status(400).json(error);
-      } else {
-        res.status(400).json(result);
-      }
-    });
+  list() {
+    return repository.all();
   }
 
-  show(id, res) {
-    const sql = `SELECT * FROM atendimentos WHERE id = ?`;
-
-    connection.query(sql, id, (error, result) => {
+  show(id) {
+    return repository.findById(id).then(async (result) => {
       const atendimento = result[0];
-      if (error) {
-        res.status(400).json(error);
-      } else {
-        res.status(200).json(atendimento);
-      }
+      const cpf = atendimento.cliente;
+      const cliente = new Promise(async (resolve, reject) => {
+        try {
+          const { data } = await axios.get(`http://localhost:8082/${cpf}`);
+          resolve(data);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    
+      atendimento.cliente = await cliente.then(result => result);
+      return atendimento;  
     });
   }
 
-  update(id, values, res) {
-    const sql = `UPDATE atendimentos SET ? WHERE id = ?`;
+  update(id, values) {
     
     if (values.data) {
       values.data = moment(values.data, 'DD/MM/YYYY').format('YYYY-MM-DD HH:MM:SS');
     }
 
-    connection.query(sql, [values, id], (error, result) => {
-      if (error) {
-        res.status(400).json(error);
-      } else {
-        res.status(200).json({...values, id});
-      }
+    const errors = validation.dataIsValid(values, true);
+
+    if (errors.length) {
+      res.status(400).json(errors);
+    }
+
+    return repository.update(id, values).then((_) => {
+      return { ...values, id}
     });
   }
 
-  delete(id, res) {
-    const sql = 'DELETE FROM atendimentos WHERE id = ?';
-    connection.query(sql, id, (error, result) => {
-      if (error) {
-        res.status(400).json(error);
-      } else {
-        res.status(200).json({
-          success: `Agendamento ${id} deletado com sucesso!`,
-          status: 200,
-        });
-      }
+  delete(id) {
+    return repository.delete(id).then((_) => {
+      const response = {
+        success: `Agendamento ${id} deletado com sucesso!`,
+        status: 200,
+      };
+      return response;
     });
   }
 }

@@ -1,10 +1,16 @@
 const moment = require('moment');
 
 class AtendimentoValidation {
-  dataIsValid(atendimento) {
-    const dataIsValid = moment(atendimento.data).isSameOrAfter(atendimento.created_at);
-    const clienteIsValid = atendimento.cliente.length >= 5;
-
+  dataIsValid(atendimento, isUpdate = false) {
+    const createdAt = moment().format('YYYY-MM-DD HH:MM:SS');
+    
+    const dataIsValid = (!isUpdate || atendimento.data) 
+    ? moment(atendimento.data).isSameOrAfter(createdAt)
+    : true;
+    const clienteIsValid = (!isUpdate || atendimento.cliente) 
+    ? atendimento.cliente.length >= 10
+    : true;
+    
     const validation = [
       {
         name: 'data',
